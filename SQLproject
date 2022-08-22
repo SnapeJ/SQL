@@ -1,0 +1,535 @@
+
+SELECT DISTINCT reason_returned,  COUNT (orders.order_id),
+
+	CASE
+		WHEN reason_returned = 'Wrong Item' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Wrong Color' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Not Needed' THEN 'Consumer Error'
+		WHEN reason_returned = 'Not Given'  THEN 'N/A'
+		ELSE 'Not Returned'
+		END AS return_fault
+
+
+FROM orders
+
+LEFT JOIN returns on orders.order_id = returns.order_id
+
+GROUP BY 1;
+
+
+-- count of returns based reason returned
+
+
+
+
+SELECT
+	 TO_CHAR (return_date, 'MM-YYYY') as date,
+	 reason_returned,
+	 COUNT (reason_returned)
+
+	 CASE
+		WHEN reason_returned = 'Wrong Item' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Wrong Color' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Not Needed' THEN 'Consumer'
+		WHEN reason_returned = 'Not Given'  THEN 'N/A'
+		END AS return_fault
+
+
+FROM returns
+
+GROUP BY 1,2
+
+ORDER BY 1 ASC;
+
+--count of return reason by month--year
+
+
+
+
+
+
+SELECT   r.reason_returned,
+          SUM (sales) as total_sales
+
+FROM orders o
+
+JOIN returns r ON r.order_id =o.order_id
+
+GROUP BY 1;
+
+--total sales loss based on return reason
+
+
+
+
+
+
+WITH cte_returns AS
+	(
+		SELECT order_id, reason_returned
+		FROM returns
+		GROUP BY 1
+	)
+
+ , cte_orders AS
+
+(
+	SELECT  region_id, order_id, sales
+	FROM orders
+)
+
+ , cte_regions AS
+
+(
+	SELECT region_id , sub_region
+	FROM regions
+
+)
+
+SELECT DISTINCT cte_regions.sub_region, reason_returned,SUM (sales)
+FROM cte_regions
+JOIN orders ord ON cte_regions.region_id = ord.region_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+
+GROUP BY 1,2
+;
+
+-- total sales loss from returns based on reason/sub region
+
+
+
+
+
+
+
+SELECT DISTINCT
+   (
+SELECT DISTINCT SUM (o.sales) return_sales_loss
+
+	FROM orders o
+
+	JOIN returns r ON r.order_id = o.order_id
+
+   )
+   /
+   (
+	SELECT DISTINCT SUM (o.sales) total_order_sales
+
+	FROM orders o
+    );
+
+
+   --total return sales loss in %
+
+
+
+
+SELECT
+   (
+SELECT SUM (o.sales) return_sales_loss
+
+	FROM orders o
+
+	JOIN returns r ON r.order_id = o.order_id
+
+	   WHERE reason_returned != 'Not Needed' AND reason_returned != 'Not Given'
+
+   )
+   /
+   (
+	SELECT DISTINCT SUM (o.sales) total_order_sales
+
+	FROM orders o
+    );
+
+
+-- total sales loss from warehouse errors %
+
+
+
+
+WITH cte_returns AS
+	(
+		SELECT DISTINCT order_id, reason_returned
+		FROM returns
+		GROUP BY 1
+	)
+
+ , cte_orders AS
+
+(
+	SELECT  region_id, order_id
+	FROM orders
+)
+
+ , cte_regions AS
+
+(
+	SELECT region_id , sub_region
+	FROM regions
+
+)
+
+SELECT DISTINCT cte_regions.sub_region, reason_returned, COUNT (reason_returned)
+FROM cte_regions
+JOIN orders ord ON cte_regions.region_id = ord.region_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+GROUP BY 1,2
+;
+
+-- reason returned count based on sub region
+
+
+
+WITH cte_returns AS
+	(
+		SELECT DISTINCT order_id, reason_returned
+		FROM returns
+		GROUP BY 1
+	)
+
+ , cte_orders AS
+
+(
+	SELECT  region_id, order_id, sales
+	FROM orders
+)
+
+ , cte_regions AS
+
+(
+	SELECT region_id , sub_region
+	FROM regions
+
+)
+
+SELECT DISTINCT cte_regions.sub_region, COUNT (reason_returned) AS warehouse_errors, SUM (sales) as total_return_value
+FROM cte_regions
+JOIN orders ord ON cte_regions.region_id = ord.region_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+WHERE reason_returned != 'Not Given' AND reason_returned != 'Not Needed'
+GROUP BY 1
+ORDER BY 2 DESC
+
+
+;
+
+-- return reason couunt by sub region
+
+
+
+
+
+WITH cte_customer AS
+	(
+		SELECT customer_id, segment
+		FROM customers
+
+	)
+
+ , cte_orders AS
+
+(
+	SELECT order_id, customer_id
+	FROM orders
+)
+
+ , cte_returns AS
+
+(
+	SELECT order_id, reason_returned
+	FROM returns
+
+)
+
+SELECT DISTINCT segment, COUNT (reason_returned) AS total_returns
+FROM cte_customer
+JOIN orders ord ON cte_customer.customer_id = ord.customer_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+GROUP BY 1
+ORDER BY 2
+;
+-- total returns by customer segment
+
+
+
+WITH cte_customer AS
+	(
+		SELECT customer_id, segment
+		FROM customers
+
+	)
+
+ , cte_orders AS
+
+(
+	SELECT order_id, customer_id, sales
+	FROM orders
+)
+
+ , cte_returns AS
+
+(
+	SELECT order_id, reason_returned
+	FROM returns
+
+)
+
+SELECT DISTINCT segment, SUM (sales) as total_sales_loss
+FROM cte_customer
+JOIN orders ord ON cte_customer.customer_id = ord.customer_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+GROUP BY 1
+ORDER BY 2
+;
+
+-- total value of returns by customer segment
+
+
+
+
+WITH cte_customer AS
+	(
+		SELECT DISTINCT customer_id, segment
+		FROM customers
+
+	)
+
+ , cte_orders AS
+
+(
+	SELECT customer_id, sales, profit
+	FROM orders
+	GROUP BY 1,2,3
+	ORDER BY 2
+)
+
+ , cte_returns AS
+
+(
+	SELECT order_id, reason_returned
+	FROM returns
+
+)
+
+SELECT DISTINCT cte_customer.customer_id, segment,  COUNT (reason_returned) total_returns, SUM(sales) as value_of_returns
+FROM cte_customer
+JOIN orders ord ON cte_customer.customer_id = ord.customer_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+GROUP BY 1,2
+ORDER BY 3 DESC
+;
+
+
+-- total returns and return value grouped by customer/segment
+
+
+
+WITH cte_product AS
+	(
+		SELECT DISTINCT product_id, category, sub_category, product_name, product_cost_to_consumer
+		FROM products
+
+	)
+
+ , cte_orders AS
+
+(
+	SELECT customer_id, sales, profit
+	FROM orders
+	GROUP BY 1,2,3
+	ORDER BY 2
+)
+
+ , cte_returns AS
+
+(
+	SELECT order_id, reason_returned
+	FROM returns
+
+)
+
+SELECT DISTINCT cte_product.category, reason_returned, COUNT (reason_returned) total_returns, SUM(sales) as value_of_returns,
+CASE
+		WHEN reason_returned = 'Wrong Item' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Wrong Color' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Not Needed' THEN 'Consumer'
+		WHEN reason_returned = 'Not Given'  THEN 'N/A'
+		END AS return_fault
+FROM cte_product
+JOIN orders ord ON cte_product.product_id = ord.product_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+GROUP BY 1,2
+
+
+
+ --total returns and return value by product category
+
+
+
+
+WITH cte_customer AS
+	(
+		SELECT DISTINCT customer_id, segment
+		FROM customers
+
+	)
+
+ , cte_orders AS
+
+(
+	SELECT customer_id, sales, profit
+	FROM orders
+	GROUP BY 1,2,3
+	ORDER BY 2
+)
+
+ , cte_returns AS
+
+(
+	SELECT order_id, reason_returned
+	FROM returns
+
+)
+
+SELECT DISTINCT cte_customer.customer_id, segment, reason_returned, COUNT (reason_returned) total_returns, SUM(sales) as value_of_returns
+FROM cte_customer
+JOIN orders ord ON cte_customer.customer_id = ord.customer_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+GROUP BY 1,2,3
+ORDER BY 5 DESC
+;
+
+
+
+--
+
+
+
+
+
+
+
+
+
+
+WITH cte_product AS
+	(
+		SELECT DISTINCT product_id, category, sub_category, product_name, product_cost_to_consumer
+		FROM products
+
+	)
+
+ , cte_orders AS
+
+(
+	SELECT customer_id, sales, profit
+	FROM orders
+	GROUP BY 1,2,3
+	ORDER BY 2
+)
+
+ , cte_returns AS
+
+(
+	SELECT order_id, reason_returned
+	FROM returns
+
+)
+
+SELECT DISTINCT cte_product.category, reason_returned, COUNT (reason_returned) total_returns, SUM(sales) as value_of_returns,
+CASE
+		WHEN reason_returned = 'Wrong Item' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Wrong Color' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Not Needed' THEN 'Consumer'
+		WHEN reason_returned = 'Not Given'  THEN 'N/A'
+		END AS return_fault
+FROM cte_product
+JOIN orders ord ON cte_product.product_id = ord.product_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+WHERE reason_returned LIKE 'Wrong%'
+GROUP BY 1,2
+;
+
+--warehouse error count and value by product sub category
+
+
+
+
+
+
+WITH cte_product AS
+	(
+		SELECT DISTINCT product_id, category, sub_category, product_name, product_cost_to_consumer
+		FROM products
+
+	)
+
+ , cte_orders AS
+
+(
+	SELECT customer_id, sales, profit
+	FROM orders
+	GROUP BY 1,2,3
+	ORDER BY 2
+)
+
+ , cte_returns AS
+
+(
+	SELECT order_id, reason_returned
+	FROM returns
+
+)
+
+SELECT DISTINCT  ctep.category, ctep.product_name, reason_returned, COUNT (reason_returned) total_returns, SUM(sales) as value_of_returns,
+CASE
+		WHEN reason_returned = 'Wrong Item' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Wrong Color' THEN 'Warehouse Error'
+		WHEN reason_returned = 'Not Needed' THEN 'Consumer'
+		WHEN reason_returned = 'Not Given'  THEN 'N/A'
+		END AS return_fault
+
+FROM cte_product ctep
+JOIN orders ord ON ctep.product_id = ord.product_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+WHERE reason_returned LIKE 'Wrong%'
+GROUP BY 1,2,3
+ORDER BY 4 DESC
+
+
+--warehouse errors by product/category
+
+
+
+WITH cte_customer AS
+	(
+		SELECT customer_id, segment
+		FROM customers
+
+	)
+
+ , cte_orders AS
+
+(
+	SELECT order_id, customer_id, sales
+	FROM orders
+)
+
+ , cte_returns AS
+
+(
+	SELECT order_id, reason_returned
+	FROM returns
+
+)
+
+SELECT DISTINCT cte_customer.customer_id , segment, reason_returned, COUNT (reason_returned) AS total_returns, SUM (sales) AS total_return_value
+FROM cte_customer
+JOIN orders ord ON cte_customer.customer_id = ord.customer_id
+JOIN returns rtn ON ord.order_id = rtn.order_id
+GROUP BY 1,2,3
+ORDER BY 5
+;
+
+--customer/segment return breakdown
